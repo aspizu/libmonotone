@@ -1,0 +1,67 @@
+╒════════════════╕
+│ FILE STRUCTURE │
+╞════════╤═══════╧══════╤══════════════════════════════════════════════════════╕
+│ OFFSET │ TYPE         │ CONTENT                                              │
+╞════════╪══════════════╪══════════════════════════════════════════════════════╡
+│ $0000  │ uint8_t      │ Length of magic bytes (always 8)                     │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $0001  │ char[8]      │ Magic bytes: "MONOTONE"                              │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $0009  │ uint8_t      │ Length of song title (max 40)                        │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $000A  │ char[40]     │ Song title                                           │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $0032  │ uint8_t      │ Length of song comment (max 40)                      │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $0033  │ char[40]     │ Song comment                                         │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $005B  │ uint8_t      │ Song format version (currently always 1)             │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $005C  │ uint8_t      │ Number of patterns                                   │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $005D  │ uint8_t      │ Number of channels                                   │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $005E  │ uint8_t      │ Size of each cell (note + effect) (always 2)         │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $005F  │ uint8_t[256] │ Order list (end of song / empty orders = $FF)        │
+├────────┼──────────────┼──────────────────────────────────────────────────────┤
+│ $015F  │ uint16_t[]   │ Cells / pattern data (documented below)              │
+└────────┴──────────────┴──────────────────────────────────────────────────────┘
+
+╒════════════════════════╕
+│ PATTERN/CELL STRUCTURE │
+├────────────────────────┴─────────────────────────────────────────────────────┐
+│ The data structure at $015F is an array of all the patterns                  │
+│ (the number of patterns is stored at $005C).                                 │
+│                                                                              │
+│ Each pattern is an array of its rows (every pattern has 64 rows).            │
+│                                                                              │
+│ Each row is an array of its cells (note + effect)                            │
+│ (the number of cells per row is the number of channels, stored at $005D).    │
+│                                                                              │
+│ Each cell is a 16-bit integer, structured as follows:                        │
+│                                                                              │
+│ HIGH BYTE   LOW BYTE                                                         │
+│ ────────    ────────                                                         │
+│ nnnnnnne    eepppppp                                                         │
+│ ││││││││    ││││││││                                                         │
+│ ││││││││    ││└┴┴┴┴┴─ parameter of effect (see below for more explanation)   │
+│ │││││││└────┴┴─────── effect type (0-7) (5,6,7 map to B,D,F respectively)    │
+│ └┴┴┴┴┴┴────────────── note (0-127) (0=empty, 1-126=A0-D11, 127=off)          │
+│                                                                              │
+│ For single-parameter effects (1xx, 2xx, 3xx, Bxx, Dxx, and Fxx),             │
+│ all six parameter bits are used to encode xx, ranging from $00 to $3F.       │
+│                                                                              │
+│ For double-parameter effects (0xy and 4xy),                                  │
+│ the upper three and lower three parameter bits are used to encode            │
+│ x and y respectively, each ranging from $0 to $7.                            │
+│                                                                              │
+│ Note that Intel's architecture is little-endian, meaning that each cell's    │
+│ low byte is written before its high byte.                                    │
+│                                                                              │
+│ The size of the data structure stored at $015F is 128*C*P bytes, where       │
+│ C is the number of channels, and                                             │
+│ P is the number of patterns.                                                 │
+│                                                                              │
+│ (2 bytes per cell * C cells per row * 64 rows per pattern * P patterns)      │
+└──────────────────────────────────────────────────────────────────────────────┘
