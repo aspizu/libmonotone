@@ -59,7 +59,12 @@ int main(int argc, char* argv[]) {
     monotone_err_t init_result = monotone_init(&monotone, song_data, file_size);
     if (init_result != MONOTONE_OK) {
         free(song_data);
-        fprintf(stderr, "Failed to initialize Monotone instance: %d\n", init_result);
+        if (init_result == MONOTONE_INVALID_FORMAT) {
+            fprintf(stderr, "Invalid .mon file format.\n");
+        }
+        else if (init_result == MONOTONE_OUT_OF_MEMORY) {
+            fprintf(stderr, "Out of memory while initializing Monotone instance.\n");
+        }
         return EXIT_FAILURE;
     }
 
