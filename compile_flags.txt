@@ -6,3 +6,4 @@
 -Wno-declaration-after-statement
 -Wno-implicit-int-conversion
 -Wno-gnu-binary-literal
+-Wno-c23-extensions

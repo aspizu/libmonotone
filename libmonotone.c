@@ -138,11 +138,7 @@ monotone_err_t monotone_init(monotone_t* monotone, uint8_t* data, size_t size) {
         return MONOTONE_OUT_OF_MEMORY;
     }
     for (size_t i = 0; i < monotone->total_tracks; i++) {
-        monotone->tracks[i] = (monotone_track_t) {
-            .hz = 0,
-            .note = 0,
-            .target_hz = 0,
-        };
+        monotone->tracks[i] = (monotone_track_t) {};
     }
     // Set default values if uninitialized.
     if (monotone->tick_rate == 0) {
