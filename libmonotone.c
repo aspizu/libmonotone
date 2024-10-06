@@ -262,9 +262,7 @@ bool monotone_tick(monotone_t* monotone) {
             monotone->row = effect_xy;
             if (!was_pattern_jumped) {
                 monotone->pattern++;
-                if (monotone->pattern == 256) {
-                    monotone->pattern = 0;
-                }
+                // pattern wrap-around is done at the beginning of this function.
             }
         }
         // Set Speed
