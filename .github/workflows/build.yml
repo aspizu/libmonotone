@@ -1,0 +1,11 @@
+name: Build
+run-name: ${{ github.actor }} is building the project
+on: [push, pull_request]
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - run: |
+                sudo apt update
+                sudo apt install -y gcc valgrind ffmpeg
+            - run: ./run.sh
