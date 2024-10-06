@@ -13,7 +13,7 @@
 #define TRACK_SIZE 128
 #define DEFAULT_SAMPLE_RATE 44100
 #define DEFAULT_TICK_RATE 4
-#define MONOTONE_MAGIC_COOKIE "monotone"
+#define MONOTONE_MAGIC_COOKIE "MONOTONE"
 #define MIN_FILE_SIZE 0x15F
 
 static size_t note_hz[] = {
@@ -165,7 +165,9 @@ size_t monotone_generate(monotone_t* monotone, uint8_t* buffer, size_t sample_co
             for (size_t k = 0; k < monotone->total_tracks; k++) {
                 monotone_track_t* track = &monotone->tracks[k];
                 if (track->note == NOTE_OFF) continue;
-                sample += (monotone->time * track->hz * 5 / (monotone->sample_rate * 2)) % 256 < 127 ? 255 : 0;
+                if ((monotone->time * track->hz * 5 / (monotone->sample_rate * 2)) % 256 < 127) {
+                    sample += 255;
+                }
             }
             sample /= monotone->total_tracks;
             // left channel
@@ -208,7 +210,7 @@ bool monotone_tick(monotone_t* monotone) {
         uint8_t effect_y = monotone->pattern_data[cell] & 0b111;
         uint16_t effect_xy = effect_x << 3 | effect_y;
         if (note != 0 && note != track->note) {
-            if (effect_type == 3) {
+            if (effect_type == PORTAMENTO_TO_NOTE) {
                 track->target_hz = note_hz[note];
             } else {
                 track->hz = note_hz[note];
