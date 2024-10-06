@@ -1,2 +1,8 @@
 -g
 -std=c11
+-Weverything
+-Wno-unsafe-buffer-access
+-Wno-unsafe-buffer-usage
+-Wno-declaration-after-statement
+-Wno-implicit-int-conversion
+-Wno-gnu-binary-literal

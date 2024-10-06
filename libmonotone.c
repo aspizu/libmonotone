@@ -5,9 +5,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define HZ 90
+#define HZ 100
+#define END_OF_SONG 0xFF
+#define NOTE_OFF 0x7F
+#define ROWS_PER_PATTERN 64
+#define MAX_PATTERNS 256
+#define TRACK_SIZE 128
+#define DEFAULT_SAMPLE_RATE 44100
+#define DEFAULT_TICK_RATE 4
 
-size_t note_hz[] = {
+static size_t note_hz[] = {
     0,     // ---
     2750,  // A0
     2914,  // A#0 / Bb0
@@ -125,20 +132,24 @@ monotone_err_t monotone_init(monotone_t* monotone, uint8_t* data, size_t size) {
     monotone->total_tracks = data[0x5D];
     monotone->pattern_order = data + 0x5F;
     monotone->pattern_data = data + 0x15F;
-    monotone->pattern_size = 128 * monotone->total_tracks;
+    monotone->pattern_size = TRACK_SIZE * monotone->total_tracks;
     monotone->tracks = malloc(sizeof(track_t) * monotone->total_tracks);
     if (monotone->tracks == NULL) {
         return MONOTONE_OUT_OF_MEMORY;
     }
     for (size_t i = 0; i < monotone->total_tracks; i++) {
-        monotone->tracks[i] = (track_t) {};
+        monotone->tracks[i] = (track_t) {
+            .hz = 0,
+            .note = 0,
+            .target_hz = 0,
+        };
     }
     // Set default values if uninitialized.
     if (monotone->tick_rate == 0) {
-        monotone->tick_rate = 4;
+        monotone->tick_rate = DEFAULT_TICK_RATE;
     }
     if (monotone->sample_rate == 0) {
-        monotone->sample_rate = 44100;
+        monotone->sample_rate = DEFAULT_SAMPLE_RATE;
     }
     return MONOTONE_OK;
 }
@@ -157,7 +168,7 @@ size_t monotone_generate(monotone_t* monotone, uint8_t* buffer, size_t sample_co
             size_t sample = 0;
             for (size_t k = 0; k < monotone->total_tracks; k++) {
                 track_t* track = &monotone->tracks[k];
-                if (track->note == 0x7F) continue;
+                if (track->note == NOTE_OFF) continue;
                 sample += (monotone->time * track->hz * 5 / (monotone->sample_rate * 2)) % 256 < 127 ? 255 : 0;
             }
             sample /= monotone->total_tracks;
@@ -177,16 +188,15 @@ bool monotone_tick(monotone_t* monotone) {
         monotone->tick = 0;
         monotone->row++;
     }
-    if (monotone->row == 64) {
+    if (monotone->row == ROWS_PER_PATTERN) {
         monotone->row = 0;
         monotone->pattern++;
     }
-    if (monotone->pattern == 256) {
+    if (monotone->pattern == MAX_PATTERNS) {
         monotone->pattern = 0;
     }
     size_t pattern = monotone->pattern_order[monotone->pattern];
-    // End of song.
-    if (pattern == 0xFF) {
+    if (pattern == END_OF_SONG) {
         for (size_t i = 0; i < monotone->total_tracks; i++) {
             monotone->tracks[i].hz = 0;
         }
@@ -197,7 +207,7 @@ bool monotone_tick(monotone_t* monotone) {
         track_t* track = &monotone->tracks[i];
         size_t cell = pattern * monotone->pattern_size + monotone->row * monotone->total_tracks * 2 + i * 2;
         uint8_t note = monotone->pattern_data[cell + 1] >> 1;
-        uint8_t effect_type = (monotone->pattern_data[cell + 1] & 1) << 2 | monotone->pattern_data[cell] >> 6;
+        effect_t effect_type = (monotone->pattern_data[cell + 1] & 1) << 2 | monotone->pattern_data[cell] >> 6;
         uint8_t effect_x = monotone->pattern_data[cell] >> 3 & 0b111;
         uint8_t effect_y = monotone->pattern_data[cell] & 0b111;
         uint16_t effect_xy = effect_x << 3 | effect_y;
@@ -209,8 +219,7 @@ bool monotone_tick(monotone_t* monotone) {
             }
             track->note = note;
         }
-        // Arpeggiate
-        if (effect_type == 0 && effect_xy != 0) {
+        if (effect_type == ARPEGGIATE && effect_xy != 0) {
             size_t tick = monotone->tick % 3;
             if (tick == 1) {
                 track->hz = note_hz[track->note + effect_x];
@@ -222,16 +231,13 @@ bool monotone_tick(monotone_t* monotone) {
                 track->hz = note_hz[track->note];
             }
         }
-        // Portamento Up
-        else if (effect_type == 1) {
+        else if (effect_type == PORTAMENTO_UP) {
             track->hz += effect_xy*HZ;
         }
-        // Portamento Down
-        else if (effect_type == 2) {
+        else if (effect_type == PORTAMENTO_DOWN) {
             track->hz -= effect_xy*HZ;
         }
-        // Port. To Note
-        else if (effect_type == 3) {
+        else if (effect_type == PORTAMENTO_TO_NOTE) {
             if (track->hz < track->target_hz) {
                 track->hz += effect_xy*HZ;
                 if (track->hz > track->target_hz) {
@@ -245,19 +251,16 @@ bool monotone_tick(monotone_t* monotone) {
                 }
             }
         }
-        // Vibrato
-        else if (effect_type == 4) {
+        else if (effect_type == VIBRATO) {
 
         }
-        // Pattern Jump
-        else if (effect_type == 5 && monotone->tick == monotone->tick_rate - 1) {
+        else if (effect_type == PATTERN_JUMP && monotone->tick == monotone->tick_rate - 1) {
             monotone->pattern = effect_xy;
             monotone->tick = 0;
             monotone->row = 0;
             was_pattern_jumped = true;
         }
-        // Row Jump
-        else if (effect_type == 6 && monotone->tick == monotone->tick_rate - 1) {
+        else if (effect_type == ROW_JUMP && monotone->tick == monotone->tick_rate - 1) {
             monotone->tick = 0;
             monotone->row = effect_xy;
             if (!was_pattern_jumped) {
@@ -265,8 +268,7 @@ bool monotone_tick(monotone_t* monotone) {
                 // pattern wrap-around is done at the beginning of this function.
             }
         }
-        // Set Speed
-        else if (effect_type == 7) {
+        else if (effect_type == SET_SPEED) {
             monotone->tick_rate = effect_xy;
         }
     }

@@ -48,7 +48,19 @@ enum monotone_err_e {
     MONOTONE_OUT_OF_MEMORY,
 };
 
+enum effect_e { 
+    ARPEGGIATE = 0,
+    PORTAMENTO_UP = 1,
+    PORTAMENTO_DOWN = 2,
+    PORTAMENTO_TO_NOTE = 3,
+    VIBRATO = 4,
+    PATTERN_JUMP = 5,
+    ROW_JUMP = 6,
+    SET_SPEED = 7,
+};
+
 typedef enum monotone_err_e monotone_err_t;
+typedef enum effect_e effect_t;
 
 /** Initialize a Monotone instance with a song.
 
