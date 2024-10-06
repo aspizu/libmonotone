@@ -7,9 +7,9 @@
 /** A Monotone instance. */
 typedef struct monotone_s monotone_t;
 /** A track. */
-typedef struct track_s track_t;
+typedef struct monotone_track_s monotone_track_t;
 
-struct track_s {
+struct monotone_track_s {
     size_t hz;
     uint8_t note;
     size_t target_hz;
@@ -29,7 +29,7 @@ struct monotone_s {
     /** The sample rate at which to generate samples. (Default = 44100) */
     size_t sample_rate;
     /** State of each track. length = `total_tracks` */
-    track_t* tracks;
+    monotone_track_t* tracks;
     /** The tick rate is the no. of ticks per row. (Default = 4) */
     size_t tick_rate;
     /** The current tick count modulo `tick_rate`. */
@@ -48,7 +48,7 @@ enum monotone_err_e {
     MONOTONE_OUT_OF_MEMORY,
 };
 
-enum effect_e { 
+enum monotone_effect_e { 
     ARPEGGIATE = 0,
     PORTAMENTO_UP = 1,
     PORTAMENTO_DOWN = 2,
@@ -60,7 +60,7 @@ enum effect_e {
 };
 
 typedef enum monotone_err_e monotone_err_t;
-typedef enum effect_e effect_t;
+typedef enum monotone_effect_e monotone_effect_t;
 
 /** Initialize a Monotone instance with a song.
 

@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define HZ 100
+#define HZ_FIXED_POINT 100
 #define END_OF_SONG 0xFF
 #define NOTE_OFF 0x7F
 #define ROWS_PER_PATTERN 64
@@ -13,6 +13,8 @@
 #define TRACK_SIZE 128
 #define DEFAULT_SAMPLE_RATE 44100
 #define DEFAULT_TICK_RATE 4
+#define MONOTONE_MAGIC_COOKIE "monotone"
+#define MIN_FILE_SIZE 0x15F
 
 static size_t note_hz[] = {
     0,     // ---
@@ -119,13 +121,11 @@ static size_t note_hz[] = {
 };
 
 monotone_err_t monotone_init(monotone_t* monotone, uint8_t* data, size_t size) {
-    // File does not contain the "MONOTONE" magic cookie.
     // First byte is always 8 for some reason.
-    if (strncmp((const char*) data + 1, "MONOTONE", 8) != 0) {
+    if (strncmp((const char*) data + 1, MONOTONE_MAGIC_COOKIE, sizeof(MONOTONE_MAGIC_COOKIE)-1) != 0) {
         return MONOTONE_INVALID_FORMAT;
     }
-    // File is shorter than the minimum size.
-    if (size < 0x15F) {
+    if (size < MIN_FILE_SIZE) {
         return MONOTONE_INVALID_FORMAT;
     }
     monotone->total_patterns = data[0x5C];
@@ -133,12 +133,12 @@ monotone_err_t monotone_init(monotone_t* monotone, uint8_t* data, size_t size) {
     monotone->pattern_order = data + 0x5F;
     monotone->pattern_data = data + 0x15F;
     monotone->pattern_size = TRACK_SIZE * monotone->total_tracks;
-    monotone->tracks = malloc(sizeof(track_t) * monotone->total_tracks);
+    monotone->tracks = malloc(sizeof(monotone_track_t) * monotone->total_tracks);
     if (monotone->tracks == NULL) {
         return MONOTONE_OUT_OF_MEMORY;
     }
     for (size_t i = 0; i < monotone->total_tracks; i++) {
-        monotone->tracks[i] = (track_t) {
+        monotone->tracks[i] = (monotone_track_t) {
             .hz = 0,
             .note = 0,
             .target_hz = 0,
@@ -167,7 +167,7 @@ size_t monotone_generate(monotone_t* monotone, uint8_t* buffer, size_t sample_co
         for (size_t j = 0; j < samples_per_tick; j++) {
             size_t sample = 0;
             for (size_t k = 0; k < monotone->total_tracks; k++) {
-                track_t* track = &monotone->tracks[k];
+                monotone_track_t* track = &monotone->tracks[k];
                 if (track->note == NOTE_OFF) continue;
                 sample += (monotone->time * track->hz * 5 / (monotone->sample_rate * 2)) % 256 < 127 ? 255 : 0;
             }
@@ -204,10 +204,10 @@ bool monotone_tick(monotone_t* monotone) {
     }
     bool was_pattern_jumped = false;
     for (size_t i = 0; i < monotone->total_tracks; i++) {
-        track_t* track = &monotone->tracks[i];
+        monotone_track_t* track = &monotone->tracks[i];
         size_t cell = pattern * monotone->pattern_size + monotone->row * monotone->total_tracks * 2 + i * 2;
         uint8_t note = monotone->pattern_data[cell + 1] >> 1;
-        effect_t effect_type = (monotone->pattern_data[cell + 1] & 1) << 2 | monotone->pattern_data[cell] >> 6;
+        monotone_effect_t effect_type = (monotone->pattern_data[cell + 1] & 1) << 2 | monotone->pattern_data[cell] >> 6;
         uint8_t effect_x = monotone->pattern_data[cell] >> 3 & 0b111;
         uint8_t effect_y = monotone->pattern_data[cell] & 0b111;
         uint16_t effect_xy = effect_x << 3 | effect_y;
@@ -232,20 +232,20 @@ bool monotone_tick(monotone_t* monotone) {
             }
         }
         else if (effect_type == PORTAMENTO_UP) {
-            track->hz += effect_xy*HZ;
+            track->hz += effect_xy*HZ_FIXED_POINT;
         }
         else if (effect_type == PORTAMENTO_DOWN) {
-            track->hz -= effect_xy*HZ;
+            track->hz -= effect_xy*HZ_FIXED_POINT;
         }
         else if (effect_type == PORTAMENTO_TO_NOTE) {
             if (track->hz < track->target_hz) {
-                track->hz += effect_xy*HZ;
+                track->hz += effect_xy*HZ_FIXED_POINT;
                 if (track->hz > track->target_hz) {
                     track->hz = track->target_hz;
                 }
             }
             else if (track->hz > track->target_hz) {
-                track->hz -= effect_xy*HZ;
+                track->hz -= effect_xy*HZ_FIXED_POINT;
                 if (track->hz < track->target_hz) {
                     track->hz = track->target_hz;
                 }
