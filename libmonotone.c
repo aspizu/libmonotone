@@ -201,8 +201,8 @@ bool monotone_tick(monotone_t* monotone) {
         uint8_t effect_x = monotone->pattern_data[cell] >> 3 & 0b111;
         uint8_t effect_y = monotone->pattern_data[cell] & 0b111;
         uint16_t effect_xy = effect_x << 3 | effect_y;
-        if (note != 0&& note != track->note) {
-            if (effect_type == 3 ) {
+        if (note != 0 && note != track->note) {
+            if (effect_type == 3) {
                 track->target_hz = note_hz[note];
             } else {
                 track->hz = note_hz[note];
@@ -262,6 +262,9 @@ bool monotone_tick(monotone_t* monotone) {
             monotone->row = effect_xy;
             if (!was_pattern_jumped) {
                 monotone->pattern++;
+                if (monotone->pattern == 256) {
+                    monotone->pattern = 0;
+                }
             }
         }
         // Set Speed
